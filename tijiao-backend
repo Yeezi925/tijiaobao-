@@ -1,0 +1,131 @@
+import sqlite3
+import os
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+import pandas as pd
+import io
+
+app = Flask(__name__)
+CORS(app)  # 允许前端跨域访问
+
+# 数据库文件路径（本地测试用，Render 上建议用 /tmp/ 或改 PostgreSQL）
+DB_FILE = "tijiaobao_v3.db"  # Render 免费层建议用 /tmp/tijiaobao_v3.db
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# 评分标准（根据你之前提供的内容，补充了部分项目）
+SCORING_STANDARDS = {
+    "1000米跑": {
+        "男": {100: 220, 98: 222, 96: 224, 94: 226, 92: 228, 90: 230, 88: 233, 86: 236, 84: 239, 82: 242, 80: 245, 78: 250, 76: 255, 74: 260, 72: 265, 70: 270, 68: 275, 66: 280, 64: 285, 62: 290, 60: 295, 50: 315, 40: 335, 30: 355, 20: 375, 10: 395},
+    },
+    "800米跑": {
+        "女": {100: 205, 98: 207, 96: 210, 94: 213, 92: 216, 90: 219, 88: 222, 86: 225, 84: 228, 82: 231, 80: 235, 78: 240, 76: 245, 74: 250, 72: 255, 70: 260, 68: 265, 66: 270, 64: 275, 62: 280, 60: 285, 50: 295, 40: 305, 30: 315, 20: 325, 10: 335},
+    },
+    "50米跑": {
+        "男": {100: 7.3, 96: 7.4, 90: 7.5, 86: 7.6, 80: 7.7, 78: 7.9, 76: 8.1, 74: 8.3, 72: 8.5, 70: 8.7, 68: 8.9, 66: 9.1, 64: 9.3, 62: 9.5, 60: 9.7, 50: 9.9, 40: 10.1, 30: 10.3, 20: 10.5, 10: 10.7},
+        "女": {100: 7.9, 96: 8.0, 90: 8.1, 88: 8.2, 86: 8.3, 84: 8.4, 82: 8.5, 80: 8.7, 78: 8.9, 76: 9.1, 74: 9.3, 72: 9.5, 70: 9.7, 68: 9.9, 66: 10.1, 64: 10.3, 62: 10.5, 60: 10.7, 50: 10.9, 40: 11.1, 30: 11.3, 20: 11.5, 10: 11.7}
+    },
+    "立定跳远": {
+        "男": {100: 285, 98: 282, 96: 279, 94: 276, 92: 273, 90: 270, 88: 267, 86: 264, 84: 261, 82: 258, 80: 255, 78: 250, 76: 245, 74: 240, 72: 235, 70: 230, 68: 225, 66: 220, 64: 215, 62: 210, 60: 205, 50: 195, 40: 185, 30: 175, 20: 165, 10: 155},
+        "女": {100: 235, 98: 232, 96: 229, 94: 226, 92: 223, 90: 220, 88: 217, 86: 214, 84: 211, 82: 208, 80: 205, 78: 200, 76: 195, 74: 190, 72: 185, 70: 180, 68: 175, 66: 170, 64: 165, 62: 160, 60: 155, 50: 145, 40: 135, 30: 125, 20: 115, 10: 105},
+    },
+    # 可继续添加其他项目...
+}
+
+def calculate_score(project, gender, performance):
+    if project not in SCORING_STANDARDS or gender not in SCORING_STANDARDS[project]:
+        return 0
+    standards = SCORING_STANDARDS[project][gender]
+    scores = sorted(standards.keys(), reverse=True)
+    for score in scores:
+        threshold = standards[score]
+        if "跑" in project:  # 时间型：越小越好
+            if performance <= threshold:
+                return score
+        else:  # 距离型如跳远：越大越好
+            if performance >= threshold / 100:  # 假设标准单位是厘米，转米
+                return score
+    return 10  # 最低分
+
+# 初始化数据库（仅首次运行）
+def init_db():
+    if not os.path.exists(DB_FILE):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS students (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                gender TEXT NOT NULL,
+                run_1000 REAL,
+                run_50 REAL,
+                long_jump REAL
+            )
+        ''')
+        # 示例数据
+        cursor.execute("INSERT INTO students (name, gender, run_1000, run_50, long_jump) VALUES ('张三', '男', 240, 7.8, 2.60)")
+        cursor.execute("INSERT INTO students (name, gender, run_1000, run_50, long_jump) VALUES ('李四', '女', 250, 8.5, 2.00)")
+        conn.commit()
+        conn.close()
+
+init_db()
+
+@app.route('/api/grades', methods=['GET'])
+def get_grades():
+    student_id = request.args.get('student_id')
+    if not student_id:
+        return jsonify({"error": "缺少 student_id 参数"}), 400
+
+    conn = get_db_connection()
+    student = conn.execute('SELECT * FROM students WHERE id = ?', (student_id,)).fetchone()
+    conn.close()
+
+    if not student:
+        return jsonify({"error": "未找到该学生"}), 404
+
+    grades = {
+        "name": student['name'],
+        "gender": student['gender'],
+        "run_1000": {
+            "performance": student['run_1000'],
+            "score": calculate_score("1000米跑", student['gender'], student['run_1000'])
+        },
+        "run_50": {
+            "performance": student['run_50'],
+            "score": calculate_score("50米跑", student['gender'], student['run_50'])
+        },
+        "long_jump": {
+            "performance": student['long_jump'],
+            "score": calculate_score("立定跳远", student['gender'], student['long_jump'])
+        }
+    }
+    return jsonify(grades)
+
+@app.route('/api/export', methods=['GET'])
+def export_grades():
+    student_id = request.args.get('student_id')
+    if not student_id:
+        return jsonify({"error": "缺少 student_id 参数"}), 400
+
+    # 这里简单示例，实际可从数据库取完整数据
+    data = [
+        {"项目": "1000米跑", "成绩(秒)": 240, "得分": 80},
+        {"项目": "50米跑", "成绩(秒)": 7.8, "得分": 85},
+        {"项目": "立定跳远", "成绩(米)": 2.6, "得分": 90}
+    ]
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'成绩单_{student_id}.xlsx'
+    )
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

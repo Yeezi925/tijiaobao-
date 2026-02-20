@@ -92,7 +92,7 @@ return res.status(400).json({ error: "没有提供学生数据" });
 }
 
 try {
-const prompt = 请根据以下体考成绩给出个性化训练建议： 姓名：${student.name} 性别：${student.gender} 总分：${student.total40} 长跑/游泳：${student.longContrib} 球类：${student.ballContrib} 选考项： ${ student.selectedProjects?.map((p) =>${p.name}: ${p.contrib}`).join("\n") ||
+const prompt = `请根据以下体考成绩给出个性化训练建议： 姓名：${student.name} 性别：${student.gender} 总分：${student.total40} 长跑/游泳：${student.longContrib} 球类：${student.ballContrib} 选考项： ${ student.selectedProjects?.map((p) =>${p.name}: ${p.contrib}`).join("\n") ||
 ""
 }
 

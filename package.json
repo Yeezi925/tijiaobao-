@@ -1,0 +1,15 @@
+{
+  "name": "tijiaobao",
+  "version": "1.0.0",
+  "description": "体育成绩系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "express": "^4.18.2",
+    "multer": "^1.4.5",
+    "xlsx": "^0.18.5"
+  }
+}

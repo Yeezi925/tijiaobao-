@@ -136,7 +136,7 @@ ${student.selectedProjects?.map(p => `${p.name}: ${p.contrib}`).join("\n") || "æ
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${process.env.OPENAI}`
         }
       }
     );
@@ -202,7 +202,7 @@ ${student.selectedProjects?.map(p => `${p.name}: ${p.contrib}`).join("\n") || "æ
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+            Authorization: `Bearer ${process.env.OPENAI}`
           }
         }
       );

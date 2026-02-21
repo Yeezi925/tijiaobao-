@@ -136,7 +136,7 @@ ${student.selectedProjects?.map(p => `${p.name}: ${p.contrib}`).join("\n") || "æ
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI}`
+          Authorization: `Bearer ${process.env.DASHSCOPE_API_KEY}`
         }
       }
     );
@@ -202,7 +202,7 @@ ${student.selectedProjects?.map(p => `${p.name}: ${p.contrib}`).join("\n") || "æ
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.OPENAI}`
+            Authorization: `Bearer ${process.env.DASHSCOPE_API_KEY}`
           }
         }
       );

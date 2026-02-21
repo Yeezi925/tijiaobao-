@@ -398,7 +398,23 @@ function singleProjectStats(data){
         "排球":calcVolleyball()
     };
 }
+function calcStats(data){
 
+    const total = data.length;
+
+    const avgTotal = (
+        data.map(s => parseFloat(s.total40) || 0)
+        .reduce((a,b)=>a+b,0) / total
+    ).toFixed(1);
+
+    const pass = data.filter(s => parseFloat(s.total40) >= 24).length;
+
+    return {
+        total,
+        avgTotal,
+        passRate: ((pass/total)*100).toFixed(1) + "%"
+    };
+}
 // 分析功能（学校/年段/班级 + 性别对比）
 function performAnalysis() {
     console.log("当前数据结构", scores[0]);
@@ -444,4 +460,205 @@ function performAnalysis() {
                     .reduce((a,b)=>a+b,0)/data.length).toFixed(1)
             },
             选考:{
-                count:data.filter(s=>parseFloat(s.selectContrib)>0).
+                count:data.filter(s=>parseFloat(s.selectContrib)>0).length,
+                avg:(data.map(s=>parseFloat(s.selectContrib)||0)
+                    .reduce((a,b)=>a+b,0)/data.length).toFixed(1)
+            }
+        }
+    }
+
+    const proj = projectStats(filtered);
+    const singleStats = singleProjectStats(filtered);
+
+    let title = level==='school' ? '学校整体' : level==='year' ? `${keyword}年段` : `${keyword}班级`;
+    let html = `
+    <h3>${title}分析（${overall.count}人）</h3>
+    <table>
+        <tr><th>指标</th><th>数值</th></tr>
+        <tr><td>平均总分</td><td>${overall.avgTotal}</td></tr>
+        <tr><td>优秀率 ≥36</td><td>${overall.excellentRate}</td></tr>
+        <tr><td>及格率 ≥30</td><td>${overall.passRate}</td></tr>
+        <tr><td>低分率 ＜20</td><td>${overall.lowRate}</td></tr>
+        <tr><td>满分人数</td><td>${overall.fullScoreCount}</td></tr>
+    </table>
+
+    <h4>项目参考统计</h4>
+    <table>
+        <tr><th>项目</th><th>参考人数</th><th>平均分</th></tr>
+        <tr><td>长跑/游泳</td><td>${proj.长跑.count}</td><td>${proj.长跑.avg}</td></tr>
+        <tr><td>球类</td><td>${proj.球类.count}</td><td>${proj.球类.avg}</td></tr>
+        <tr><td>选考</td><td>${proj.选考.count}</td><td>${proj.选考.avg}</td></tr>
+    </table>
+    `;
+
+    html += `
+    <h4>单项参考人数与平均值</h4>
+    <table>
+        <tr>
+            <th>项目</th>
+            <th>参考人数</th>
+            <th>平均值</th>
+        </tr>
+        <tr><td>长跑</td><td>${singleStats["长跑"].count}</td><td>${singleStats["长跑"].avg}</td></tr>
+        <tr><td>游泳</td><td>${singleStats["游泳"].count}</td><td>${singleStats["游泳"].avg}</td></tr>
+        <tr><td>足球</td><td>${singleStats["足球"].count}</td><td>${singleStats["足球"].avg}</td></tr>
+        <tr><td>篮球</td><td>${singleStats["篮球"].count}</td><td>${singleStats["篮球"].avg}</td></tr>
+        <tr><td>排球</td><td>${singleStats["排球"].count}</td><td>${singleStats["排球"].avg}</td></tr>
+        <tr><td>50米跑</td><td>${singleStats["50米跑"].count}</td><td>${singleStats["50米跑"].avg}</td></tr>
+        <tr><td>一分钟仰卧起坐</td><td>${singleStats["仰卧起坐"].count}</td><td>${singleStats["仰卧起坐"].avg}</td></tr>
+        <tr><td>掷实心球</td><td>${singleStats["实心球"].count}</td><td>${singleStats["实心球"].avg}</td></tr>
+        <tr><td>1分钟跳绳</td><td>${singleStats["跳绳"].count}</td><td>${singleStats["跳绳"].avg}</td></tr>
+        <tr><td>引体/斜身引体</td><td>${singleStats["引体类"].count}</td><td>${singleStats["引体类"].avg}</td></tr>
+        <tr><td>立定跳远</td><td>${singleStats["立定跳远"].count}</td><td>${singleStats["立定跳远"].avg}</td></tr>
+    </table>
+    `;
+
+    if(showGender){
+        const male=calcStats(filtered.filter(s=>s.gender==='男'));
+        const female=calcStats(filtered.filter(s=>s.gender==='女'));
+        html+=`
+        <h4>男女对比</h4>
+        <table>
+            <tr><th>性别</th><th>人数</th><th>平均分</th></tr>
+            <tr><td>男</td><td>${male?.count||0}</td><td>${male?.avgTotal||0}</td></tr>
+            <tr><td>女</td><td>${female?.count||0}</td><td>${female?.avgTotal||0}</td></tr>
+        </table>
+        `;
+    }
+
+    document.getElementById('analyzeResult').innerHTML = html;
+}
+
+// 单人生成AI建议
+async function generateAdvice(){
+  // 找到用户选中的行
+  const selRow = document.querySelector("#resultTable tr.selected");
+  if(!selRow){
+    alert("请先点击表格中某个学生行以选中");
+    return;
+  }
+
+  // 构造学生对象
+  const student = {
+    name: selRow.cells[0].textContent,
+    class: selRow.cells[1].textContent,
+    gender: selRow.cells[2].textContent,
+    total40: selRow.cells[3].textContent,
+    longContrib: selRow.cells[4]?.textContent,
+    ballContrib: selRow.cells[5]?.textContent,
+    // 如果你有选考项目可以加上 selectedProjects 字段
+  };
+
+  const res = await fetch("/api/suggest", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ student })
+  });
+
+  const data = await res.json();
+  document.getElementById("aiResult").textContent = data.advice || "生成失败";
+}
+
+// 点击表格行高亮选中
+document.getElementById("resultTable").addEventListener("click", e=>{
+  const tr = e.target.closest("tr");
+  if(!tr || tr.parentNode.tagName==="THEAD") return;
+  document.querySelectorAll("#resultTable tr").forEach(r=>r.classList.remove("selected"));
+  tr.classList.add("selected");
+});
+// 计算统计
+function calcStats(group) {
+    if (!group || group.length === 0) return null;
+    const totals = group.map(s => parseFloat(s.total40) || 0);
+    return {
+        count: group.length,
+        avgTotal: (totals.reduce((a,b)=>a+b,0)/group.length).toFixed(1),
+        excellentRate: ((totals.filter(v=>v>=36).length/group.length)*100).toFixed(1)+'%',
+        passRate: ((totals.filter(v=>v>=30).length/group.length)*100).toFixed(1)+'%',
+        lowRate: ((totals.filter(v=>v<20).length/group.length)*100).toFixed(1)+'%',
+        fullScoreCount: totals.filter(v=>v==40).length,
+        avgLong: (group.map(s=>parseFloat(s.longContrib)||0)
+            .reduce((a,b)=>a+b,0)/group.length).toFixed(1),
+        avgBall: (group.map(s=>parseFloat(s.ballContrib)||0)
+            .reduce((a,b)=>a+b,0)/group.length).toFixed(1),
+        avgSelect: (group.map(s=>parseFloat(s.selectContrib)||0)
+            .reduce((a,b)=>a+b,0)/group.length).toFixed(1)
+    };
+}
+
+function downloadFile() {
+    if (!scores || scores.length === 0) {
+        alert('没有可导出的成绩');
+        return;
+    }
+
+    const exportData = scores.map(s => {
+        const proj1 = s.selectedProjects?.[0] || {};
+        const proj2 = s.selectedProjects?.[1] || {};
+        return {
+            姓名: s.name || '',
+            班级: s.class || '',
+            学校: s.school || '',
+            性别: s.gender || '',
+            总分40: s.total40 || '',
+            长跑游泳得分: s.longContrib || '',
+            球类得分: s.ballContrib || '',
+            选考总得分: s.selectContrib || '',
+            选考1项目: proj1.name || '',
+            选考1得分: proj1.contrib || '',
+            选考2项目: proj2.name || '',
+            选考2得分: proj2.contrib || '',
+            状态: s.status || ''
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "成绩报告");
+    const wbout = XLSX.write(wb,{ bookType:'xlsx', type:'array' });
+    const blob = new Blob([wbout],{ type:"application/octet-stream" });
+    const link=document.createElement("a");
+    link.href=URL.createObjectURL(blob);
+    link.download="体教宝成绩报告.xlsx";
+    link.click();
+}
+function generateAdvice(){
+
+    if(scores.length === 0){
+        alert("没有学生数据");
+        return;
+    }
+
+    const student = scores[0];
+
+    fetch("/api/suggest",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({student})
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        document.getElementById("aiResult").textContent =
+            data.advice || JSON.stringify(data);
+    })
+    .catch(err=>{
+        console.error(err);
+        alert("AI请求失败");
+    });
+}
+// 清空数据
+function clearData() {
+    if (confirm('确定清空所有数据？')) {
+        scores = [];
+        localStorage.removeItem(STORAGE_KEY);
+        document.getElementById('recordCount').textContent = 0;
+        document.getElementById('resultTable').innerHTML = '';
+        alert('已清空');
+    }
+}
+
+    </script>
+</body>
+</html>

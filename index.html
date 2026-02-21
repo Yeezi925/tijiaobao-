@@ -39,7 +39,7 @@ th { background: #e3f2fd; }
             <p>已导入记录数：<span id="recordCount">0</span></p>
             <div id="resultTable"></div>
             <button onclick="clearData()">清空所有数据</button>
-            <button onclick="downloadFile()">下载成绩报告</button>
+            <button onclick="downloadFile()">下载成绩报告</button
             <div class="section">
 
   <button onclick="generateAdvice()">生成选中学生建议</button>
@@ -398,23 +398,7 @@ function singleProjectStats(data){
         "排球":calcVolleyball()
     };
 }
-function calcStats(data){
 
-    const total = data.length;
-
-    const avgTotal = (
-        data.map(s => parseFloat(s.total40) || 0)
-        .reduce((a,b)=>a+b,0) / total
-    ).toFixed(1);
-
-    const pass = data.filter(s => parseFloat(s.total40) >= 24).length;
-
-    return {
-        total,
-        avgTotal,
-        passRate: ((pass/total)*100).toFixed(1) + "%"
-    };
-}
 // 分析功能（学校/年段/班级 + 性别对比）
 function performAnalysis() {
     console.log("当前数据结构", scores[0]);
@@ -622,32 +606,7 @@ function downloadFile() {
     link.download="体教宝成绩报告.xlsx";
     link.click();
 }
-function generateAdvice(){
 
-    if(scores.length === 0){
-        alert("没有学生数据");
-        return;
-    }
-
-    const student = scores[0];
-
-    fetch("/api/suggest",{
-        method:"POST",
-        headers:{
-            "Content-Type":"application/json"
-        },
-        body:JSON.stringify({student})
-    })
-    .then(res=>res.json())
-    .then(data=>{
-        document.getElementById("aiResult").textContent =
-            data.advice || JSON.stringify(data);
-    })
-    .catch(err=>{
-        console.error(err);
-        alert("AI请求失败");
-    });
-}
 // 清空数据
 function clearData() {
     if (confirm('确定清空所有数据？')) {
